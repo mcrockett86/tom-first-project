@@ -1,0 +1,21 @@
+{
+  "gateway": {
+    "host": "http://localhost:8080",
+    "api_endpoint": "/__openclaw__/api"
+  },
+  "auth": {
+    "use_pat": false,
+    "github": {
+      "token_variable": "GITHUB_PAT"
+    }
+  },
+  "security": {
+    "allow_elevated_ops": false,
+    "dangerous_commands": "rm -rf;mount;dd /dev/*",
+    "max_exec_timeout_s": "3600"
+  },
+  "logging": {
+    "log_level": "INFO",
+    "log_dir": "./.openclaw/logs"
+  }
+}

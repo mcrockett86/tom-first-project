@@ -1,0 +1,27 @@
+[project]
+name = "tom-first-project"
+version = "0.1.0"
+description = "OpenClaw gateway provisioning scripts for agent setup and management"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",  # HTTP requests for API calls
+    "python-dotenv>=1.0.0",  # Environment variable management
+    "rich>=13.7.0",  # Terminal UI and approval prompts
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",  # Testing framework
+    "pydantic>=2.5.0",  # Data validation
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pydantic>=2.5.0",
+]
