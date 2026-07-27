@@ -17,8 +17,25 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "uv"]
 build-backend = "hatchling.build"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pydantic>=2.5.0",
+]
+
+[tool.uv]
+dependency-groups = [
+    {
+        name = "dev",
+        dependencies = [
+            "pytest>=8.0.0",
+            "pydantic>=2.5.0",
+        ],
+    },
+]
 
 [tool.uv]
 dev-dependencies = [
