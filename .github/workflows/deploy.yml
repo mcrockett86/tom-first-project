@@ -1,0 +1,215 @@
+# Deployment Workflow for OpenClaw Gateway Provisioning CLI Library
+# This workflow builds, tests, and releases the CLI package
+
+name: Deploy CLI Library
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Build & Release CLI Library
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && startsWith(github.head_ref, 'feat/') || github.event_name == 'workflow_dispatch'
+    
+    outputs:
+      release_tag: ${{ steps.bump_release.outputs.tag }}
+      release_type: ${{ steps.bump_release.outputs.release_type }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          cd ${{ github.workspace }}
+          uv sync --dev
+      
+      - name: Run full test suite
+        run: |
+          cd ${{ github.workspace }}
+          
+          echo "=== Running Full Test Suite ===" 
+          uv run pytest tests/ -v --tb=short
+      
+      - name: Build wheel package
+        run: |
+          cd ${{ github.workspace }}
+          
+          # Create a proper build configuration
+          cat > pyproject_build.toml << 'PYBUILD'
+[project]
+name = "tom-first-project-gateway-provisioning"
+version = "0.1.0"
+description = "OpenClaw Gateway Provisioning CLI Library"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31.0",
+  "python-dotenv>=1.0.0",
+  "rich>=13.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pydantic>=2.5.0",
+  "pytest-cov>=4.1.0",
+  "ruff>=0.1.0",
+  "mypy>=1.7.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+PYBUILD
+          
+          # Build wheel and source distribution
+          uv build --wheel
+      
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-library-wheel
+          path: dist/*.whl
+          retention-days: 7
+      
+      - name: Bump release tag (if no tag exists)
+        id: bump_release
+        run: |
+          cd ${{ github.workspace }}
+          
+          # Get current version from pyproject.toml if it exists
+          if [ -f "pyproject.toml" ]; then
+            CURRENT_VERSION=$(grep '^version' pyproject.toml | cut -d'=' -f2 | tr -d '"'|tr -d "'")
+            echo "Current version: $CURRENT_VERSION"
+            
+            # Determine release type from workflow_dispatch or PR
+            RELEASE_TYPE="${{ github.event.inputs.release_type || 'patch' }}"
+          
+          else
+            # Default to patch release
+            CURRENT_VERSION="0.1.0"
+            RELEASE_TYPE="patch"
+          fi
+          
+          echo "tag=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release (if tag created)
+        uses: softprops/action-gh-release@v1
+        if: steps.bump_release.outputs.tag != '' && github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ steps.bump_release.outputs.tag }}
+          name: OpenClaw Gateway Provisioning CLI v${{ steps.bump_release.outputs.tag }}
+          body: |
+            ## 🚀 OpenClaw Gateway Provisioning CLI Library
+            
+            ### Features
+            
+            **CLI Commands:**
+            - `python scripts/cli_config_init.py init` - Interactive configuration setup
+            - `python scripts/cli_auth_setup.py create-template` - Create .env template  
+            - `python scripts/cli_provision_setup.py <stage>` - Run provisioning stages
+            - `python scripts/cli_provision_migrate.py run` - Migrate skills with sanitization
+            
+            ### Unit Tests
+            
+            ```bash
+            uv add pytest pydantic
+            uv run pytest tests/ -v --cov=src/gateway_provisioning --cov-report=term-missing
+            ```
+            
+            ### Security Features
+            
+            ✅ No API tokens in config files  
+            ✅ Interactive approval prompts for sensitive operations  
+            ✅ Pattern-based sanitization of skills during migration  
+            ✅ Comprehensive CI/CD pipeline checks
+            
+            ### Quick Start
+            
+            ```bash
+            # 1. Install dependencies
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            uv sync --dev
+            
+            # 2. Initialize configuration
+            python scripts/cli_config_init.py init
+            
+            # 3. Create auth template
+            python scripts/cli_auth_setup.py create-template
+            
+            # 4. Run provisioning wizard
+            python scripts/cli_provision_setup.py setup
+            
+            # 5. Migrate skills (optional)
+            python scripts/cli_provision_migrate.py run
+            ```
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-pypi:
+    name: Publish to PyPI (dry-run mode)
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+      
+      - name: Build package
+        run: |
+          cd ${{ github.workspace }}
+          uv build --wheel
+      
+      - name: Upload wheel to artifact (PyPI would use credentials)
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-library-wheel
+          path: dist/*.whl
+          retention-days: 7
+
+EOF
