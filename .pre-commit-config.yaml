@@ -1,0 +1,70 @@
+# Pre-commit configuration for OpenClaw Gateway Provisioning CLI Library
+# This file defines local hooks for automated code quality checks
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        # Ignore .pyi stub files and common config files
+        exclude: '.*\.pyi|build/|dist/|\.(git|rke|kubeconfig)'
+      
+      - id: end-of-file-fixer
+        # Ignore empty files and data files
+        exclude: '.*\.json$|.*\.yaml$|.*\.yml$|.*\.html$|.*\.md$'
+      
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      
+      - id: check-merge-conflicts
+      
+      - id: check-symlinks
+      
+      - id: check-yaml
+        # Don't fail on warnings about empty array mappings
+        args: ['--unsafe', '--multidimensional-mapping-keys-allowed-in-non-multi-files']
+      
+      - id: check-json
+        exclude: 'package-lock.json|pnpm-lock.yaml'
+      
+      - id: detect-private-key
+      
+      # Check for TODO/FIXME comments (can be configured per project)
+      - id: check-todo
+        args: ['--exclude=tests/']
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.1
+    hooks:
+      # Run the linter
+      - id: ruff
+        name: ruff (linter)
+        args: [--fix, --exit-non-zero-on-fix]
+      
+      # Check formatting with Black
+      - id: ruff-format
+        name: ruff (formatter)
+
+  # Optional: MyPy type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: ['types-requests','types-python-dotenv']
+        exclude: '^tests/'
+
+  # Optional: Security scanning with Bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: '1.7.5'
+    hooks:
+      - id: bandit
+        args: ['-r', 'src/gateway_provisioning']
+        exclude: 'tests/'
+
+# Default Python files for linting/formatting (adjust based on project)
+exclude: ^(build|\.git|.venv|.env|.openclaw/.env)
+
+# To use with Git hooks automatically:
+# 1. Run: pre-commit install
+# 2. Configure git to run before each commit
+#    OR configure for specific branches/hooks
